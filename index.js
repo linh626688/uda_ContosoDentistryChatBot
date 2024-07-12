@@ -69,7 +69,9 @@ const QnAConfiguration = {
 const LuisConfiguration = {
     applicationId: process.env.LuisAppId,
     endpointKey: process.env.LuisAPIKey,
-    endpoint: process.env.LuisAPIHostName
+    endpoint: process.env.LuisAPIHostName,
+    projectName: process.env.LuisProjectName,
+    deploymentName: process.env.LuisDeploymentName
 };
 
 const SchedulerConfiguration = {
@@ -86,7 +88,7 @@ const configuration = {
 const myBot = new DentaBot(configuration, {});
 
 // Listen for incoming requests.
-server.post('/api/messages', (req, res) => {
+server.post('/api/messages', (req, res, next) => {
     adapter.processActivity(req, res, async (context) => {
         // Route to main dialog.
         await myBot.run(context);

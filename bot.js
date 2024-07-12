@@ -3,27 +3,51 @@
 
 const { ActivityHandler, MessageFactory } = require('botbuilder');
 
-const { QnAMaker } = require('botbuilder-ai');
-// const DentistScheduler = require('./dentistscheduler');
-// const IntentRecognizer = require('./intentrecognizer');
+const DentistScheduler = require('./dentistscheduler');
+const IntentRecognizer = require('./intentrecognizer');
+const { CustomQuestionAnswering } = require('botbuilder-ai');
 
 class DentaBot extends ActivityHandler {
     constructor(configuration, qnaOptions) {
         // call the parent constructor
         super();
-        console.log('QnAConfiguration', configuration);
         if (!configuration) throw new Error('[QnaMakerBot]: Missing parameter. configuration is required');
-        this.QnAMaker = new QnAMaker(configuration.QnAConfiguration, qnaOptions);
+        this.QnAMaker = new CustomQuestionAnswering(configuration.QnAConfiguration);
 
         // create a DentistScheduler connector
+        this.DentistScheduler = new DentistScheduler(configuration.SchedulerConfiguration);
 
         // create a IntentRecognizer connector
+        this.IntentRecognizer = new IntentRecognizer(configuration.LuisConfiguration);
 
         this.onMessage(async (context, next) => {
-            // Send user input to QnA Maker
             const qnaResults = await this.QnAMaker.getAnswers(context);
             // If an answer was received from QnA Maker, send the answer back to the user.
-            console.log('qnaResults', qnaResults);
+            const luisReponse = await this.IntentRecognizer.executeLuisQuery(context);
+            console.log('luisReponse', luisReponse);
+            if (luisReponse.prediction.topIntent === 'GetAvailability' &&
+                luisReponse.prediction.intents[0].confidence > 0.5 && luisReponse.prediction.entities[0]) {
+                const availableSlots = await this.DentistScheduler.getAvailability();
+                console.log('availableSlots', availableSlots);
+                await context.sendActivity(availableSlots);
+                await next();
+                return;
+            }
+            if (luisReponse.prediction.topIntent === 'ScheduleAppointment' &&
+                    luisReponse.prediction.intents[0].confidence > 0.5 && luisReponse.prediction.entities[0]) {
+                const time = this.IntentRecognizer.getTimeEntity(luisReponse);
+
+                const scheduleTime = await this.DentistScheduler.scheduleAppointment(time);
+                console.log('scheduleTime', scheduleTime);
+
+                await context.sendActivity(MessageFactory.text(scheduleTime, scheduleTime));
+                await next();
+                return;
+            }
+
+            if (qnaResults[0]) {
+                await context.sendActivity(`${ qnaResults[0].answer }`);
+            }
             if (qnaResults[0]) {
                 console.log(qnaResults[0]);
                 await context.sendActivity(`${ qnaResults[0].answer }`);
@@ -33,22 +57,6 @@ class DentaBot extends ActivityHandler {
                     'I found an answer to your question' +
                     'You can ask me questions about electric vehicles like "how can I charge my car?"');
             }
-            // send user input to QnA Maker and collect the response in a variable
-            // don't forget to use the 'await' keyword
-
-            // send user input to IntentRecognizer and collect the response in a variable
-            // don't forget 'await'
-
-            // determine which service to respond with based on the results from LUIS //
-
-            // if(top intent is intentA and confidence greater than 50){
-            //  doSomething();
-            //  await context.sendActivity();
-            //  await next();
-            //  return;
-            // }
-            // else {...}
-
             await next();
         });
 
