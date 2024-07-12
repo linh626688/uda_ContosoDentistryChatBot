@@ -66,6 +66,6 @@ jobs:
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'uda-app-service-webapp'
-          slot-name: 'Production'
+          # slot-name: 'Production'
           package: .
           
